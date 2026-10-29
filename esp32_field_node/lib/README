@@ -1,0 +1,3 @@
+# Place your reusable library source files here.
+# Each library should be in its own subdirectory.
+# See: https://docs.platformio.org/en/latest/projectconf/sections/env/options/library/lib_deps.html

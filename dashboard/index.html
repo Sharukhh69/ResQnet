@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResQNet Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #050810;
+            --glass-bg: rgba(16, 24, 43, 0.7);
+            --glass-border: rgba(0, 240, 255, 0.2);
+            --cyan-glow: #00f0ff;
+            --red-alert: #ff2a55;
+            --green-safe: #00ff88;
+            --text-main: #e2e8f0;
+            --text-dim: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Map Container (Background) */
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        /* Overlay Layout */
+        .dashboard-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to the map */
+        }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+            pointer-events: auto; /* Enable clicks on the panels */
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            top: 2rem;
+            bottom: 2rem;
+        }
+
+        /* Sidebar Controls */
+        .sidebar {
+            left: 2rem;
+            width: 350px;
+            gap: 1.5rem;
+        }
+
+        .brand h1 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, #fff, var(--cyan-glow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 0 20px rgba(0,240,255,0.3);
+        }
+
+        .brand p {
+            color: var(--cyan-glow);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .status-module {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            background: rgba(0,0,0,0.5);
+            border-radius: 8px;
+            border-left: 4px solid var(--text-dim);
+            transition: all 0.3s ease;
+        }
+
+        .status-module.active {
+            border-left-color: var(--green-safe);
+            box-shadow: inset 20px 0 30px -20px var(--green-safe);
+        }
+
+        .pulse {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-dim);
+            box-shadow: 0 0 0 0 rgba(100, 116, 139, 0.7);
+        }
+
+        .status-module.active .pulse {
+            background: var(--green-safe);
+            animation: pulse-green 2s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 136, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+        }
+
+        .btn-primary {
+            background: rgba(0,0,0,0.5);
+            color: var(--cyan-glow);
+            border: 1px solid var(--cyan-glow);
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 240, 255, 0.2), transparent);
+            transition: all 0.4s ease;
+        }
+
+        .btn-primary:hover {
+            background: rgba(0, 240, 255, 0.15);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+        }
+
+        .btn-primary:hover::before {
+            left: 100%;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            color: var(--cyan-glow);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            box-sizing: border-box;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: white;
+            padding: 0.8rem 1rem;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            transition: border-color 0.3s;
+            outline: none;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            border-color: var(--cyan-glow);
+        }
+        
+        .map-click-hint {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            font-style: italic;
+            margin-top: -0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Main Feed */
+        .feed-container {
+            right: 2rem;
+            width: 350px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        #alerts-container {
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding-right: 0.5rem;
+        }
+
+        #alerts-container::-webkit-scrollbar { width: 6px; }
+        #alerts-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        #alerts-container::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 4px; }
+
+        .alert-card {
+            background: linear-gradient(135deg, rgba(255, 42, 85, 0.15), rgba(0,0,0,0.6));
+            border: 1px solid rgba(255, 42, 85, 0.4);
+            border-left: 6px solid var(--red-alert);
+            border-radius: 8px;
+            padding: 1.2rem;
+            animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .alert-card:hover {
+            transform: translateX(-5px);
+            box-shadow: 0 0 15px rgba(255,42,85,0.3);
+        }
+
+        .alert-card.info {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(0,0,0,0.6));
+            border: 1px solid rgba(0, 240, 255, 0.4);
+            border-left: 6px solid var(--cyan-glow);
+        }
+        
+        .alert-card.info:hover {
+            box-shadow: 0 0 15px rgba(0,240,255,0.3);
+        }
+
+        .alert-card::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; width: 60px; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05));
+            transform: skewX(-45deg);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(50px) scale(0.95); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+
+        .alert-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .alert-card:not(.info) .alert-title {
+            color: var(--red-alert);
+            text-shadow: 0 0 10px rgba(255, 42, 85, 0.5);
+        }
+
+        .alert-meta {
+            font-family: 'JetBrains Mono', monospace;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        
+        .alert-meta span {
+            color: white;
+        }
+
+        .alert-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-align: right;
+            margin-top: 0.5rem;
+        }
+
+        .radar-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 0;
+            color: var(--cyan-glow);
+            opacity: 0.6;
+        }
+
+        .radar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 1px solid var(--cyan-glow);
+            position: relative;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+        }
+
+        .radar::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 50%; height: 50%;
+            background: conic-gradient(from 0deg, transparent 70%, rgba(0, 240, 255, 0.8) 100%);
+            transform-origin: 0 0;
+            animation: scan 2s linear infinite;
+        }
+
+        .radar::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 4px; height: 4px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px white;
+        }
+
+        @keyframes scan {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Google Map Background -->
+    <div id="map"></div>
+
+    <!-- UI Overlay -->
+    <div class="dashboard-overlay">
+        <!-- Sidebar Controls -->
+        <div class="sidebar glass-panel">
+            <div class="brand">
+                <h1>HQ Command</h1>
+                <p>ResQNet LoRa Terminal</p>
+            </div>
+
+            <div class="status-module" id="status-box">
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim);">Uplink Status</div>
+                    <div id="status-text" style="font-weight: 600; margin-top: 4px;">Disconnected</div>
+                </div>
+                <div class="pulse"></div>
+            </div>
+
+            <button class="btn-primary" id="connect-btn">Initialize Uplink</button>
+
+            <div id="broadcast-panel" style="display: none; flex-direction: column; flex-grow: 1; border-top: 1px solid var(--glass-border); padding-top: 1.5rem;">
+                <h3 style="color: white; margin-bottom: 1rem; font-size: 1.1rem;">Tactical Deployment</h3>
+                
+                <div class="input-group">
+                    <label>Resource Type</label>
+                    <select id="b-type">
+                        <option value="SHELTER">Shelter Zone</option>
+                        <option value="FOOD">Food / Medical Drop</option>
+                    </select>
+                </div>
+                
+                <p class="map-click-hint">Click anywhere on the map to set coordinates</p>
+                
+                <div style="display: flex; gap: 0.5rem;">
+                    <div class="input-group" style="flex: 1;">
+                        <label>Latitude</label>
+                        <input type="text" id="b-lat" placeholder="e.g. 26.2006">
+                    </div>
+
+                    <div class="input-group" style="flex: 1;">
+                        <label>Longitude</label>
+                        <input type="text" id="b-lon" placeholder="e.g. 92.9376">
+                    </div>
+                </div>
+
+                <button class="btn-primary" id="broadcast-btn" style="margin-top: auto; border-color: var(--green-safe); color: var(--green-safe);">
+                    Execute Broadcast
+                </button>
+            </div>
+        </div>
+
+        <!-- Center Spacer (Map visible here) -->
+        <div class="center-spacer"></div>
+
+        <!-- Live Data Feed -->
+        <div class="feed-container glass-panel">
+            <div class="feed-header">
+                <h2 style="font-size: 1.2rem;">Live Operations</h2>
+                <div style="font-family: 'JetBrains Mono'; font-size: 0.85rem; color: var(--text-dim);">433.0 MHz</div>
+            </div>
+
+            <div id="alerts-container">
+                <div class="radar-container" id="empty-state">
+                    <div class="radar"></div>
+                    <h3 style="font-weight: 500; font-size: 1rem; letter-spacing: 1px; text-transform: uppercase;">Awaiting Signals</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Google Maps API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC0pKg_2LUaMF-IDklGCa3l4LLopDIKZws&callback=initMap" async defer></script>
+
+    <script>
+        // --- MAP LOGIC ---
+        let map;
+        let markers = {};
+        let deploymentMarker = null;
+
+        function initMap() {
+            // Default center (Assam region where standard coordinates are pointing)
+            const defaultLocation = { lat: 26.2006, lng: 92.9376 };
+            
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 8,
+                center: defaultLocation,
+                mapTypeId: 'satellite',
+                disableDefaultUI: true, // Hide boring default controls
+                zoomControl: true       // Keep zoom buttons
+            });
+
+            // Allow user to click the map to set deployment coordinates
+            map.addListener('click', function(e) {
+                document.getElementById('b-lat').value = e.latLng.lat().toFixed(5);
+                document.getElementById('b-lon').value = e.latLng.lng().toFixed(5);
+                
+                // Show a preview marker
+                if (deploymentMarker) {
+                    deploymentMarker.setPosition(e.latLng);
+                } else {
+                    deploymentMarker = new google.maps.Marker({
+                        position: e.latLng,
+                        map: map,
+                        title: 'Deployment Target',
+                        icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                    });
+                }
+            });
+        }
+
+        function plotSOSMarker(id, lat, lon, signal, severity) {
+            if (!map) return;
+            const position = { lat: parseFloat(lat), lng: parseFloat(lon) };
+            
+            // If coordinate is 0.0000 (GPS not locked yet), don't plot it to avoid plotting in the ocean off Africa
+            if (position.lat === 0 && position.lng === 0) return;
+
+            let markerColor = 'red';
+            let pulseColor = '#ff2a55'; // Critical
+            if (severity === 0) {
+                markerColor = 'green';
+                pulseColor = '#00ff88';
+            } else if (severity === 1) {
+                markerColor = 'yellow';
+                pulseColor = '#ffeb3b';
+            } else if (severity === 2) {
+                markerColor = 'orange';
+                pulseColor = '#ff9800';
+            }
+
+            // If marker already exists, just update position
+            if (markers[id]) {
+                markers[id].setPosition(position);
+                markers[id].setIcon(`http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`);
+                if (markers[id].pulseCircle) {
+                    markers[id].pulseCircle.setCenter(position);
+                    markers[id].pulseCircle.setOptions({ strokeColor: pulseColor, fillColor: pulseColor });
+                }
+            } else {
+                // Create new glowing marker
+                const marker = new google.maps.Marker({
+                    position: position,
+                    map: map,
+                    title: `Victim: ${id}`,
+                    icon: `http://maps.google.com/mapfiles/ms/icons/${markerColor}-dot.png`,
+                    animation: google.maps.Animation.DROP
+                });
+                
+                // Create tactical pulsing radar circle
+                const pulseCircle = new google.maps.Circle({
+                    strokeColor: pulseColor,
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                    fillColor: pulseColor,
+                    fillOpacity: 0.35,
+                    map: map,
+                    center: position,
+                    radius: 0
+                });
+
+                // Animate the circle
+                let radius = 0;
+                setInterval(() => {
+                    // Zoom level affects meters per pixel, so scale the pulse dynamically
+                    const currentZoom = map.getZoom();
+                    // At zoom 14, 500m looks good. At zoom 8, it needs to be huge.
+                    const maxRadius = Math.pow(2, 21 - currentZoom) * 2; 
+                    const step = maxRadius / 20;
+
+                    radius += step;
+                    
+                    if (radius > maxRadius) {
+                        radius = 0;
+                        pulseCircle.setOptions({ strokeOpacity: 0.8, fillOpacity: 0.35 });
+                    } else {
+                        pulseCircle.setOptions({
+                            strokeOpacity: Math.max(0, 0.8 - (radius / maxRadius)),
+                            fillOpacity: Math.max(0, 0.35 - (radius / (maxRadius * 3)))
+                        });
+                    }
+                    pulseCircle.setRadius(radius);
+                }, 50);
+
+                marker.pulseCircle = pulseCircle;
+                markers[id] = marker;
+            }
+            
+            // Pan to the new victim
+            map.panTo(position);
+            map.setZoom(14);
+        }
+
+        function focusOnMarker(id) {
+            if (markers[id]) {
+                map.panTo(markers[id].getPosition());
+                map.setZoom(16);
+            }
+        }
+
+        // --- HARDWARE COMM LOGIC ---
+        const connectBtn = document.getElementById('connect-btn');
+        const statusBox = document.getElementById('status-box');
+        const statusText = document.getElementById('status-text');
+        const alertsContainer = document.getElementById('alerts-container');
+        const emptyState = document.getElementById('empty-state');
+        const broadcastPanel = document.getElementById('broadcast-panel');
+        const broadcastBtn = document.getElementById('broadcast-btn');
+
+        const BASE_STATION_URL = "http://192.168.29.99:8080";
+        let pollTimer = null;
+        
+        function setupConnectedUI() {
+            statusBox.classList.add('active');
+            statusText.innerText = "LORA NETWORK ACTIVE";
+            connectBtn.style.display = 'none';
+            broadcastPanel.style.display = 'flex';
+        }
+
+        async function connectSerial() {
+            setupConnectedUI();
+            startTelemetryPoll();
+        }
+
+        function startTelemetryPoll() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(async () => {
+                try {
+                    const res = await fetch(`${BASE_STATION_URL}/api/telemetry`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.status !== "AWAITING") {
+                            processTelemetryData(data);
+                        }
+                    }
+                } catch (e) {
+                    console.log("Waiting for Base Station stream...", e);
+                }
+            }, 1000);
+        }
+
+        // Tactical Broadcast button handler
+        if (broadcastBtn) {
+            broadcastBtn.addEventListener('click', async () => {
+                const bType = document.getElementById('b-type').value;
+                const bLat = document.getElementById('b-lat').value || "26.2006";
+                const bLon = document.getElementById('b-lon').value || "92.9376";
+                
+                const cmdPayload = `CMD|ALPHA-01|ACK_SOS|${bType}_AT_${bLat},${bLon}`;
+                try {
+                    const res = await fetch(`${BASE_STATION_URL}/api/broadcast`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command: cmdPayload })
+                    });
+                    if (res.ok) {
+                        alert(`Tactical Command Dispatched over LoRa:\n${cmdPayload}`);
+
+                        // Plot permanent green marker
+                        new google.maps.Marker({
+                            position: { lat: parseFloat(bLat), lng: parseFloat(bLon) },
+                            map: map,
+                            title: `HQ Drop: ${bType}`,
+                            icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                        });
+
+                        addAlertCard(`DEPLOYMENT: ${bType}`, true, `
+                            COORDINATES : <span>${bLat}, ${bLon}</span><br>
+                            STATUS      : <span>TRANSMITTED OVER LORA</span>
+                        `);
+
+                        // Clear preview marker
+                        if (deploymentMarker) {
+                            deploymentMarker.setMap(null);
+                            deploymentMarker = null;
+                        }
+                    }
+                } catch (e) {
+                    alert("Failed to send command to Base Station. Ensure Gateway API is running.");
+                }
+            });
+        }
+
+        function processTelemetryData(t) {
+            const isCritical = (t.status === "SOS_CRITICAL");
+            const severity = isCritical ? 3 : 0;
+            const signalStr = `${t.rssi} dBm (SNR: ${t.snr}dB)`;
+
+            // Plot on Map
+            plotSOSMarker(t.node_id, t.lat, t.lon, signalStr, severity);
+
+            // Update feed card
+            if (emptyState) emptyState.style.display = 'none';
+
+            let existingCard = document.getElementById(`card-${t.node_id}`);
+            const cardHtml = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 700; color: white; font-size: 1.1rem;">FIELD UNIT: ${t.node_id}</span>
+                    <span style="font-size: 0.85rem; color: ${isCritical ? '#ff2a55' : '#00ff88'}; font-weight: bold;">
+                        ${isCritical ? '🚨 SOS CRITICAL' : '🟢 NORMAL'}
+                    </span>
+                </div>
+                <div style="font-family: 'JetBrains Mono'; font-size: 0.85rem; line-height: 1.5; color: var(--text-main);">
+                    LOCATION : <span style="color: var(--cyan-glow);">${t.lat}, ${t.lon}</span><br>
+                    BATTERY  : <span style="color: #ffeb3b;">${t.battery}</span><br>
+                    SIGNAL   : <span>${signalStr}</span><br>
+                    PACKET   : <span>${t.seq}</span><br>
+                    LAST RX  : <span>${t.last_seen}</span>
+                </div>
+            `;
+
+            if (existingCard) {
+                existingCard.innerHTML = cardHtml;
+                existingCard.style.borderLeftColor = isCritical ? 'var(--red-alert)' : 'var(--green-safe)';
+            } else {
+                const card = document.createElement('div');
+                card.id = `card-${t.node_id}`;
+                card.className = 'alert-card';
+                card.style.borderLeftColor = isCritical ? 'var(--red-alert)' : 'var(--green-safe)';
+                card.innerHTML = cardHtml;
+                card.onclick = () => focusOnMarker(t.node_id);
+                alertsContainer.prepend(card);
+            }
+        }
+
+        // Map of device IDs to their alert card elements
+        const activeAlertCards = {};
+
+        function getTagsString(mask) {
+            let tags = [];
+            if (mask & 1) tags.push("Injured");
+            if (mask & 2) tags.push("Elderly");
+            if (mask & 4) tags.push("Child");
+            if (mask & 8) tags.push("Pregnant");
+            if (mask & 16) tags.push("Unconscious");
+            if (mask & 32) tags.push("Chronic illness");
+            return tags.length > 0 ? tags.join(", ") : "None specified";
+        }
+        
+        function getSeverityString(severity) {
+            if (severity === 0) return "🟢 SAFE (Needs supplies)";
+            if (severity === 1) return "🟡 STABLE (Needs evac)";
+            if (severity === 2) return "🟠 URGENT";
+            return "🔴 CRITICAL";
+        }
+
+
+
+        function addAlertCard(title, isInfo, metaHtml) {
+            if (emptyState) emptyState.style.display = 'none';
+
+            const card = document.createElement('div');
+            card.className = 'alert-card' + (isInfo ? ' info' : '');
+            
+            const timeString = new Date().toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric", second: "numeric" });
+
+            card.innerHTML = `
+                <div>
+                    <div class="alert-title">
+                        ${isInfo ? '📡' : '⚠️'} ${title}
+                    </div>
+                    <div class="alert-meta">
+                        ${metaHtml}
+                    </div>
+                </div>
+                <div class="alert-time">
+                    T-[${timeString}]
+                </div>
+            `;
+
+            alertsContainer.insertBefore(card, alertsContainer.firstChild);
+            return card;
+        }
+
+        connectBtn.addEventListener('click', connectSerial);
+    </script>
+</body>
+</html>

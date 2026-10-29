@@ -1,0 +1,2 @@
+# Place your shared header (.h) files here.
+# These will be available globally across src/ and lib/.
